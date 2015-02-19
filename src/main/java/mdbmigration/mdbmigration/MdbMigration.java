@@ -189,7 +189,7 @@ public class MdbMigration {
 						System.out.println("success:" + ps);
 						ps.clearParameters();
 					} catch (SQLException e1) {
-						System.out.println(ps);
+						System.out.println("fail:" + ps);
 					}
 				}
 			}
