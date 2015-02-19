@@ -4,10 +4,12 @@ import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.ResultSet;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -19,7 +21,7 @@ import com.healthmarketscience.jackcess.Database;
 import com.healthmarketscience.jackcess.Table;
 
 public class MdbMigration {
-	private String filePath;
+	private Database mdb;
 	private String hostName;
 	private String port;
 	private String databaseName;
@@ -28,33 +30,43 @@ public class MdbMigration {
 	private String pass;
 	private Map<String, TableMapping> convertTableMap = new HashMap<String, TableMapping>();
 	
-	public MdbMigration(String filePath, String hostName, String port, String databaseName, String schema, String user, String pass){
-		this.filePath = filePath;
+	
+	public MdbMigration(String filePath, String hostName, String port, String databaseName, String schema, String user, String pass) throws IOException{
+		this.mdb = Database.open(new File(filePath));
 		this.hostName = hostName;
 		this.port = port;
 		this.databaseName = databaseName;
 		this.schema = schema;
 		this.user = user;
 		this.pass = pass;
+		this.targetTableNames = new ArrayList<String>();
 	}
 	
-	public MdbMigration(String filePath, String hostName, String port, String databaseName, String schema, String user, String pass, List<TableMapping> tableMappings){
-		this.filePath = filePath;
-		this.hostName = hostName;
-		this.port = port;
-		this.databaseName = databaseName;
-		this.schema = schema;
-		this.user = user;
-		this.pass = pass;
+	public MdbMigration(String filePath, String hostName, String port, String databaseName, String schema, String user, String pass, List<TableMapping> tableMappings) throws IOException{
+		this(filePath, hostName, port, databaseName, schema, user, pass);
 		for(TableMapping tableMapping : tableMappings){
 			this.convertTableMap.put(tableMapping.getOriginTableName(), tableMapping);
 		}
 	}
 	
+	private List<String> targetTableNames;
+	public void setTargetTableNames(List<String> targetTableNames){
+		this.targetTableNames = targetTableNames;
+	}
+	
+	private boolean onlyTableSchema = false;
+	public void setOnlyTableSchema(boolean onlyTableSchema){
+		this.onlyTableSchema = onlyTableSchema;
+	}
+	
+	private Set<String> excludedTable = new HashSet<String>();
+	public void setExcludedTable(Set<String> excludedTable){
+		this.excludedTable = excludedTable;
+	}
+	
 	private Connection con = null;
 	public void execute() throws ClassNotFoundException, SQLException{
 		Class.forName("org.postgresql.Driver");
-		
 		try {
 			String url = "jdbc:postgresql://" + hostName + ":" + port + "/" + databaseName;
 			System.out.println(url);
@@ -77,13 +89,20 @@ public class MdbMigration {
 	}
 	
 	private void allDropTable() throws SQLException{
-		String sql = "select * from pg_tables where tablename not like 'pg%' and tablename not like 'sql_%'";
-		Statement statement = con.createStatement();
-		ResultSet rs = statement.executeQuery(sql);
-		while(rs.next()){
+		Set<String> tableNames = getTableNames();
+		for(String tableName : tableNames){
+			if(targetTableNames.size() != 0 && !targetTableNames.contains(tableName)){
+				continue;
+			}
+			if(excludedTable.size() != 0 && excludedTable.contains(tableName)){
+				continue;
+			}
+			if(convertTableMap.containsKey(tableName)){
+				tableName = convertTableMap.get(tableName).getMigrateTableName();
+			}
 			StringBuilder sb = new StringBuilder();
 			sb.append("DROP TABLE IF EXISTS ");
-			sb.append(rs.getString(2));
+			sb.append(tableName);
 			sb.append(";");
 			System.out.println(sb.toString());
 			Statement st = con.createStatement();
@@ -91,15 +110,36 @@ public class MdbMigration {
 		}
 	}
 	
+	public Set<String> getTableNames(){
+		return mdb.getTableNames();
+	}
+	
+	public Table getTable(String tableName) throws IOException{
+		return mdb.getTable(tableName);
+	}
+	
+	public List<Column> getColumns(String tableName) throws IOException{
+		if(tableName != null){
+			Table table = getTable(tableName);
+			if(table != null){
+				return table.getColumns();
+			}
+		}
+		return null;
+	}
+	
 	private void openMdb(){
-		Database mdb = null;
 		try {
-			mdb = Database.open(new File(filePath));
-			Set<String> tableNames = mdb.getTableNames();
+			Set<String> tableNames = getTableNames();
 			for(String tableName : tableNames){
-				Table table = mdb.getTable(tableName);
+				if(targetTableNames.size() != 0 && !targetTableNames.contains(tableName)){
+					continue;
+				}
+				if(excludedTable.size() != 0 && excludedTable.contains(tableName)){
+					continue;
+				}
+				Table table = getTable(tableName);
 				List<Column> columns = table.getColumns();
-				
 				MigrateEntity me = new MigrateEntity();
 				if(convertTableMap.containsKey(tableName)){
 					me.setTableName(convertTableMap.get(tableName).getMigrateTableName());
@@ -128,7 +168,10 @@ public class MdbMigration {
 					// CREATE TABLEに失敗したらINSERT SQLは実行しないためcontinue
 					continue;
 				}
-				
+				if(onlyTableSchema){
+					continue;
+				}
+				PreparedStatement ps = con.prepareStatement(me.getPreparedStatementSql());
 				Iterator<Map<String, Object>> rowIterator = table.iterator();
 				while(rowIterator.hasNext()){
 					Map<String, Object> row = rowIterator.next();
@@ -141,16 +184,19 @@ public class MdbMigration {
 						}
 					}
 					try {
-						Statement statement = con.createStatement();
-						statement.execute(me.getInsertSQL());
-						System.out.println("success:" + me.getInsertSQL());
+						ps = me.applyPreparedStatement(ps);
+						ps.executeUpdate();
+						System.out.println("success:" + ps);
+						ps.clearParameters();
 					} catch (SQLException e1) {
-						System.out.println("fail:" + me.getInsertSQL());
+						System.out.println(ps);
 					}
 				}
 			}
 			System.out.println("END");
 		} catch (IOException e) {
+			e.printStackTrace();
+		} catch (SQLException e) {
 			e.printStackTrace();
 		} finally{
 			if(mdb != null){

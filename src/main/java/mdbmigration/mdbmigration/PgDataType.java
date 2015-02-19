@@ -36,4 +36,13 @@ public enum PgDataType {
 		}
 		return null;
 	}
+	
+	public static PgDataType getPgType(String type){
+		for(PgDataType pgDataType : PgDataType.values()){
+			if(pgDataType.type.equals(type)){
+				return pgDataType;
+			}
+		}
+		return null;
+	}
 }

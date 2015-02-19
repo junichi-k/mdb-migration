@@ -1,9 +1,18 @@
 package mdbmigration.mdbmigration;
 
+import java.io.ByteArrayInputStream;
+import java.sql.ParameterMetaData;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
@@ -52,32 +61,98 @@ public class MigrateEntity {
 		dataMap.put(columnName, value);
 	}
 	
-	public String getInsertSQL(){
+	public String getPreparedStatementSql(){
 		StringBuilder sb = new StringBuilder();
 		sb.append("INSERT INTO ");
 		sb.append(tableName);
 		sb.append("(");
 		List<String> columnDef = new ArrayList<String>();
 		for(Entry<String, String> e : columnNameMap.entrySet()){
-			if(dataMap.containsKey(e.getKey())){
-				columnDef.add(e.getKey());
-			}
+			columnDef.add(e.getKey());
 		}
 		sb.append(StringUtils.join(columnDef, ','));
 		sb.append(")VALUES(");
-		
 		List<String> dataDef = new ArrayList<String>();
-		for(Entry<String, String> e : columnNameMap.entrySet()){
-			if(dataMap.containsKey(e.getKey())){
-				if(dataMap.get(e.getKey()) != null){
-					dataDef.add("'" + dataMap.get(e.getKey()) + "'");
-				}else{
-					dataDef.add("null");
-				}
-			}
+		for(int i = 0 ; i < columnNameMap.size() ; i++){
+			dataDef.add("?");
 		}
 		sb.append(StringUtils.join(dataDef, ','));
-		sb.append(");");
+		sb.append(")");
 		return sb.toString();
+	}
+	
+	public PreparedStatement applyPreparedStatement(PreparedStatement ps) throws SQLException{
+		int index = 1;
+		for(Entry<String, String> e : columnNameMap.entrySet()){
+			if(dataMap.containsKey(e.getKey())){
+				setValue(ps, index, e.getValue(), dataMap.get(e.getKey()));
+				index++;
+			}
+		}
+		return ps;
+	}
+	
+	private SimpleDateFormat sdf = new SimpleDateFormat("EEE MMM dd HH:mm:ss z yyyy", Locale.US);
+	private SimpleDateFormat convertSdf = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
+	
+	/**
+	 * 型を判断して値をPreparedStatementにセットする
+	 * @param ps
+	 * @param index
+	 * @param type
+	 * @param value 空はnullとして扱う
+	 * @throws SQLException
+	 */
+	private void setValue(PreparedStatement ps, int index, String type, String value) throws SQLException{
+		PgDataType pgDataType = PgDataType.getPgType(type);
+		if(pgDataType == null){
+			throw new RuntimeException("型が見つかりません");
+		}
+		if(StringUtils.isEmpty(value)){
+			ParameterMetaData metaData = ps.getParameterMetaData();
+			ps.setNull(index, metaData.getParameterType(index));
+			return;
+		}
+		switch(pgDataType){
+		case BOOLEAN:
+			ps.setBoolean(index, value.toLowerCase().equals("true"));
+			break;
+		case BYTE:
+			ps.setByte(index, Byte.valueOf(value));
+			break;
+		case INT:
+		case GUID:
+			ps.setInt(index, Integer.parseInt(value));
+			break;
+		case LONG:
+		case MONEY:
+		case NUMERIC:
+			ps.setLong(index, Long.parseLong(value));
+			break;
+		case FLOAT:
+			ps.setFloat(index, Float.parseFloat(value));
+			break;
+		case DOUBLE:
+			ps.setDouble(index, Double.parseDouble(value));
+			break;
+		case SHORT_DATE_TIME:
+			try {
+				Date d = sdf.parse(value);
+				ps.setTimestamp(index, Timestamp.valueOf(convertSdf.format(d)));
+			} catch (ParseException e) {
+				throw new RuntimeException(value + ":Timestampに変換できません");
+			}
+			break;
+		case BINARY:
+		case OLE:
+			ps.setBinaryStream(index, new ByteArrayInputStream(value.getBytes()));
+			break;
+		case TEXT:
+		case MEMO:
+		case UNKNOWN_0D:
+		case UNKNOWN_11:
+			ps.setString(index, value);
+			break;
+		}
 	}
 }

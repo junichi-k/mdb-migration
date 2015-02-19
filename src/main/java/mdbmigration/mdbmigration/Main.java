@@ -1,14 +1,18 @@
 package mdbmigration.mdbmigration;
 
+import java.io.IOException;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class Main {
 
-	public static void main(String[] args){
+	public static void main(String[] args) throws IOException{
 		if(args.length == 1 && args[0].toLowerCase().equals("help")){
 			for(ArgsType argType : ArgsType.values()){
 				System.out.println(argType.argName + ":\t" + argType.help);
@@ -61,8 +65,21 @@ public class Main {
 		if(argMap.containsKey(ArgsType.PASS.argName)){
 			user = argMap.get(ArgsType.PASS.argName);
 		}
-		
+		List<String> targetTableNames = new ArrayList<String>();
+		if(argMap.containsKey(ArgsType.TABLE.argName)){
+			String tableNameArg = argMap.get(ArgsType.TABLE.argName);
+			String[] tableNames = tableNameArg.split(",");
+			targetTableNames = Arrays.asList(tableNames);
+		}
+		Set<String> excludedTableNames = new HashSet<String>();
+		if(argMap.containsKey(ArgsType.TABLE.argName)){
+			String tableNameArg = argMap.get(ArgsType.EXCLUDED_TABLE.argName);
+			String[] tableNames = tableNameArg.split(",");
+			excludedTableNames = new HashSet<String>(Arrays.asList(tableNames));
+		}
 		MdbMigration mdbMigration = new MdbMigration(filePath, hostName, port, databaseName, schema, user, pass);
+		mdbMigration.setTargetTableNames(targetTableNames);
+		mdbMigration.setExcludedTable(excludedTableNames);
 		try {
 			mdbMigration.execute();
 		} catch (ClassNotFoundException e) {
@@ -79,7 +96,9 @@ public class Main {
 		DATABASE_NAME("databaseName", "postgresqlのデータベース名"),
 		SCHEMA("schema", "テーブルのスキーマ"),
 		USER("user", "postgresqlのユーザー名"),
-		PASS("pass", "postgresqlのパスワード"),;
+		PASS("pass", "postgresqlのパスワード"),
+		TABLE("table", "指定したテーブルのみ移行する(カンマ区切りで複数指定可能)"),
+		EXCLUDED_TABLE("excluded", "指定したテーブルは移行しない(カンマ区切りで複数指定可能)");
 		
 		public String argName;
 		public String help;
