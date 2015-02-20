@@ -141,20 +141,21 @@ public class MdbMigration {
 				Table table = getTable(tableName);
 				List<Column> columns = table.getColumns();
 				MigrateEntity me = new MigrateEntity();
-				if(convertTableMap.containsKey(tableName)){
-					me.setTableName(convertTableMap.get(tableName).getMigrateTableName());
+				TableMapping tableMapping = convertTableMap.get(tableName);
+				if(tableMapping != null){
+					me.setTableName(tableMapping.getMigrateTableName());
 				}else{
 					me.setTableName(tableName);
 				}
 				for(Column c : columns){
 					String columnName = c.getName();
 					String dataTypeName = PgDataType.getPgType(c.getType()).type;
-					if(convertTableMap.containsKey(tableName)){
-						if(convertTableMap.get(tableName).containsOriginColumnName(c.getName())){
-							columnName = convertTableMap.get(tableName).getMigrateColumnName(c.getName());
+					if(tableMapping != null){
+						if(tableMapping.containsOriginColumnName(c.getName())){
+							columnName = tableMapping.getMigrateColumnName(c.getName());
 						}
-						if(convertTableMap.get(tableName).containsMigrateDataType(c.getName())){
-							dataTypeName = convertTableMap.get(tableName).getDataType(c.getName());
+						if(tableMapping.containsMigrateDataType(c.getName())){
+							dataTypeName = tableMapping.getDataType(c.getName());
 						}
 					}
 					me.setColumNameMap(columnName, dataTypeName);
@@ -171,8 +172,8 @@ public class MdbMigration {
 				if(onlyTableSchema){
 					continue;
 				}
-				PreparedStatement ps = con.prepareStatement(me.getPreparedStatementSql());
 				Iterator<Map<String, Object>> rowIterator = table.iterator();
+				
 				while(rowIterator.hasNext()){
 					Map<String, Object> row = rowIterator.next();
 					me.clearData();
@@ -183,6 +184,7 @@ public class MdbMigration {
 							me.setDataMap(e.getKey(), null);
 						}
 					}
+					PreparedStatement ps = con.prepareStatement(me.getPreparedStatementSql());
 					try {
 						ps = me.applyPreparedStatement(ps);
 						ps.executeUpdate();

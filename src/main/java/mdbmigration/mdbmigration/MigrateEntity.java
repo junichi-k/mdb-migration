@@ -1,7 +1,6 @@
 package mdbmigration.mdbmigration;
 
 import java.io.ByteArrayInputStream;
-import java.sql.ParameterMetaData;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -25,8 +24,13 @@ public class MigrateEntity {
 		this.tableName = tableName;
 	}
 	
+	private TableMapping tableMapping;
+	public void setTableMapping(TableMapping tableMapping){
+		this.tableMapping = tableMapping;
+	}
+	
 	/**
-	 * key: カラム名
+	 * key: カラム名(移行後のカラム名)
 	 * value: データ型
 	 */
 	private Map<String, String> columnNameMap = new LinkedHashMap<String, String>();
@@ -49,7 +53,7 @@ public class MigrateEntity {
 	}
 
 	/**
-	 * key: カラム名
+	 * key: カラム名(移行元のカラム名)
 	 * value: 値
 	 */
 	private Map<String, String> dataMap = new TreeMap<String, String>();
@@ -73,7 +77,7 @@ public class MigrateEntity {
 		sb.append(StringUtils.join(columnDef, ','));
 		sb.append(")VALUES(");
 		List<String> dataDef = new ArrayList<String>();
-		for(int i = 0 ; i < columnNameMap.size() ; i++){
+		for(Entry<String, String> e : columnNameMap.entrySet()){
 			dataDef.add("?");
 		}
 		sb.append(StringUtils.join(dataDef, ','));
@@ -84,10 +88,17 @@ public class MigrateEntity {
 	public PreparedStatement applyPreparedStatement(PreparedStatement ps) throws SQLException{
 		int index = 1;
 		for(Entry<String, String> e : columnNameMap.entrySet()){
+			if(tableMapping != null && tableMapping.containsMigrateValue(e.getKey())){
+				setValue(ps, index, e.getValue(), tableMapping.getValueMap(e.getKey()));
+				index++;
+				continue;
+			}
 			if(dataMap.containsKey(e.getKey())){
 				setValue(ps, index, e.getValue(), dataMap.get(e.getKey()));
-				index++;
+			}else{
+				setValue(ps, index, e.getValue(), null);
 			}
+			index++;
 		}
 		return ps;
 	}
@@ -109,8 +120,7 @@ public class MigrateEntity {
 			throw new RuntimeException("型が見つかりません");
 		}
 		if(StringUtils.isEmpty(value)){
-			ParameterMetaData metaData = ps.getParameterMetaData();
-			ps.setNull(index, metaData.getParameterType(index));
+			ps.setNull(index, pgDataType.sqlType);
 			return;
 		}
 		switch(pgDataType){

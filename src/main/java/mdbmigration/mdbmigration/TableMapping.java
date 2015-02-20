@@ -30,4 +30,16 @@ public abstract class TableMapping {
 	public String getDataType(String originColumnName){
 		return dataTypeMap.get(originColumnName);
 	}
+	
+	/**
+	 * key:移行先カラム
+	 * value:変換値
+	 */
+	protected Map<String, String> valueMap = new HashMap<String, String>();
+	public boolean containsMigrateValue(String migrateColumnName){
+		return valueMap.containsKey(migrateColumnName);
+	}
+	public String getValueMap(String migrateColumnName){
+		return valueMap.get(migrateColumnName);
+	}
 }

@@ -72,7 +72,7 @@ public class Main {
 			targetTableNames = Arrays.asList(tableNames);
 		}
 		Set<String> excludedTableNames = new HashSet<String>();
-		if(argMap.containsKey(ArgsType.TABLE.argName)){
+		if(argMap.containsKey(ArgsType.EXCLUDED_TABLE.argName)){
 			String tableNameArg = argMap.get(ArgsType.EXCLUDED_TABLE.argName);
 			String[] tableNames = tableNameArg.split(",");
 			excludedTableNames = new HashSet<String>(Arrays.asList(tableNames));
