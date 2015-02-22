@@ -131,74 +131,18 @@ public class MdbMigration {
 	private void openMdb(){
 		try {
 			Set<String> tableNames = getTableNames();
-			for(String tableName : tableNames){
-				if(targetTableNames.size() != 0 && !targetTableNames.contains(tableName)){
-					continue;
-				}
-				if(excludedTable.size() != 0 && excludedTable.contains(tableName)){
-					continue;
-				}
-				Table table = getTable(tableName);
-				List<Column> columns = table.getColumns();
-				MigrateEntity me = new MigrateEntity();
-				TableMapping tableMapping = convertTableMap.get(tableName);
-				if(tableMapping != null){
-					me.setTableName(tableMapping.getMigrateTableName());
-				}else{
-					me.setTableName(tableName);
-				}
-				for(Column c : columns){
-					String columnName = c.getName();
-					String dataTypeName = PgDataType.getPgType(c.getType()).type;
-					if(tableMapping != null){
-						if(tableMapping.containsOriginColumnName(c.getName())){
-							columnName = tableMapping.getMigrateColumnName(c.getName());
-						}
-						if(tableMapping.containsMigrateDataType(c.getName())){
-							dataTypeName = tableMapping.getDataType(c.getName());
-						}
-					}
-					me.setColumNameMap(columnName, dataTypeName);
-				}
-				try {
-					Statement statement = con.createStatement();
-					statement.execute(me.getCreateTableSQL());
-					System.out.println("success:" + me.getCreateTableSQL());
-				} catch (SQLException e1) {
-					System.out.println("fail:" + me.getCreateTableSQL());
-					// CREATE TABLEに失敗したらINSERT SQLは実行しないためcontinue
-					continue;
-				}
-				if(onlyTableSchema){
-					continue;
-				}
-				Iterator<Map<String, Object>> rowIterator = table.iterator();
-				
-				while(rowIterator.hasNext()){
-					Map<String, Object> row = rowIterator.next();
-					me.clearData();
-					for(Entry<String, Object> e : row.entrySet()){
-						if(e.getValue() != null){
-							me.setDataMap(e.getKey(), e.getValue().toString());
-						}else{
-							me.setDataMap(e.getKey(), null);
-						}
-					}
-					PreparedStatement ps = con.prepareStatement(me.getPreparedStatementSql());
+			tableNames.parallelStream()
+				.filter(e -> targetTableNames.size() == 0 || targetTableNames.contains(e))
+				.filter(e -> excludedTable.size() == 0 || !excludedTable.contains(e))
+				.forEach(tableName -> {
 					try {
-						ps = me.applyPreparedStatement(ps);
-						ps.executeUpdate();
-						System.out.println("success:" + ps);
-						ps.clearParameters();
-					} catch (SQLException e1) {
-						System.out.println("fail:" + ps);
+						migrateTable(tableName);
+					} catch (Exception e1) {
+						throw new RuntimeException(e1);
 					}
-				}
-			}
+			});
 			System.out.println("END");
-		} catch (IOException e) {
-			e.printStackTrace();
-		} catch (SQLException e) {
+		} catch (Exception e) {
 			e.printStackTrace();
 		} finally{
 			if(mdb != null){
@@ -207,6 +151,65 @@ public class MdbMigration {
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
+			}
+		}
+	}
+	
+	private void migrateTable(String tableName) throws SQLException, IOException{
+		Table table = getTable(tableName);
+		List<Column> columns = table.getColumns();
+		MigrateEntity me = new MigrateEntity();
+		TableMapping tableMapping = convertTableMap.get(tableName);
+		if(tableMapping != null){
+			me.setTableName(tableMapping.getMigrateTableName());
+		}else{
+			me.setTableName(tableName);
+		}
+		for(Column c : columns){
+			String columnName = c.getName();
+			String dataTypeName = PgDataType.getPgType(c.getType()).type;
+			if(tableMapping != null){
+				if(tableMapping.containsOriginColumnName(c.getName())){
+					columnName = tableMapping.getMigrateColumnName(c.getName());
+				}
+				if(tableMapping.containsMigrateDataType(c.getName())){
+					dataTypeName = tableMapping.getDataType(c.getName());
+				}
+			}
+			me.setColumNameMap(columnName, dataTypeName);
+		}
+		try {
+			Statement statement = con.createStatement();
+			statement.execute(me.getCreateTableSQL());
+			System.out.println("success:" + me.getCreateTableSQL());
+		} catch (SQLException e1) {
+			System.out.println("fail:" + me.getCreateTableSQL());
+			// CREATE TABLEに失敗したらINSERT SQLは実行しないためcontinue
+			return;
+		}
+		if(onlyTableSchema){
+			return;
+		}
+		Iterator<Map<String, Object>> rowIterator = table.iterator();
+		
+		while(rowIterator.hasNext()){
+			Map<String, Object> row = rowIterator.next();
+			me.clearData();
+			for(Entry<String, Object> e : row.entrySet()){
+				if(e.getValue() != null){
+					me.setDataMap(e.getKey(), e.getValue().toString());
+				}else{
+					me.setDataMap(e.getKey(), null);
+				}
+			}
+			PreparedStatement ps = con.prepareStatement(me.getPreparedStatementSql());
+			try {
+				ps = me.applyPreparedStatement(ps);
+				ps.executeUpdate();
+				System.out.println("success:" + ps);
+				ps.clearParameters();
+			} catch (SQLException e1) {
+				System.out.println("fail:" + ps);
 			}
 		}
 	}
