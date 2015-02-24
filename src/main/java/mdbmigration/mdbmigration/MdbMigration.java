@@ -162,6 +162,7 @@ public class MdbMigration {
 		TableMapping tableMapping = convertTableMap.get(tableName);
 		if(tableMapping != null){
 			me.setTableName(tableMapping.getMigrateTableName());
+			me.setTableMapping(tableMapping);
 		}else{
 			me.setTableName(tableName);
 		}
