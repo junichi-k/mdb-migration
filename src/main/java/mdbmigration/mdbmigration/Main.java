@@ -1,5 +1,6 @@
 package mdbmigration.mdbmigration;
 
+import java.io.File;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -10,9 +11,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.healthmarketscience.jackcess.Database;
+
 public class Main {
 
-	public static void main(String[] args) throws IOException{
+	public static void main(String[] args){
 		if(args.length == 1 && args[0].toLowerCase().equals("help")){
 			for(ArgsType argType : ArgsType.values()){
 				System.out.println(argType.argName + ":\t" + argType.help);
@@ -77,15 +80,28 @@ public class Main {
 			String[] tableNames = tableNameArg.split(",");
 			excludedTableNames = new HashSet<String>(Arrays.asList(tableNames));
 		}
-		MdbMigration mdbMigration = new MdbMigration(filePath, hostName, port, databaseName, schema, user, pass);
-		mdbMigration.setTargetTableNames(targetTableNames);
-		mdbMigration.setExcludedTable(excludedTableNames);
+		MdbMigration mdbMigration = null;
+		Database mdb = null;
 		try {
+			mdb = Database.create(new File(filePath));
+			mdbMigration = new MdbMigration(mdb, hostName, port, databaseName, schema, user, pass);
+			mdbMigration.setTargetTableNames(targetTableNames);
+			mdbMigration.setExcludedTable(excludedTableNames);
 			mdbMigration.execute();
+		} catch (IOException e1) {
+			e1.printStackTrace();
 		} catch (ClassNotFoundException e) {
 			e.printStackTrace();
 		} catch (SQLException e) {
 			e.printStackTrace();
+		} finally{
+			if(mdb != null){
+				try {
+					mdb.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
 		}
 	}
 	

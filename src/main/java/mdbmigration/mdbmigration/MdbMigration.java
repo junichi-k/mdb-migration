@@ -1,6 +1,5 @@
 package mdbmigration.mdbmigration;
 
-import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -31,8 +30,12 @@ public class MdbMigration {
 	private Map<String, TableMapping> convertTableMap = new HashMap<String, TableMapping>();
 	
 	
-	public MdbMigration(String filePath, String hostName, String port, String databaseName, String schema, String user, String pass) throws IOException{
-		this.mdb = Database.open(new File(filePath));
+	public MdbMigration(Database mdb, String hostName, String port, String databaseName, String schema, String user, String pass) throws IOException{
+		this.mdb = mdb;
+		this.tableNames = mdb.getTableNames();
+		for(String table : this.tableNames){
+			this.tableMap.put(table, mdb.getTable(table));
+		}
 		this.hostName = hostName;
 		this.port = port;
 		this.databaseName = databaseName;
@@ -42,8 +45,8 @@ public class MdbMigration {
 		this.targetTableNames = new ArrayList<String>();
 	}
 	
-	public MdbMigration(String filePath, String hostName, String port, String databaseName, String schema, String user, String pass, List<TableMapping> tableMappings) throws IOException{
-		this(filePath, hostName, port, databaseName, schema, user, pass);
+	public MdbMigration(Database mdb, String hostName, String port, String databaseName, String schema, String user, String pass, List<TableMapping> tableMappings) throws IOException{
+		this(mdb, hostName, port, databaseName, schema, user, pass);
 		for(TableMapping tableMapping : tableMappings){
 			this.convertTableMap.put(tableMapping.getOriginTableName(), tableMapping);
 		}
@@ -110,12 +113,14 @@ public class MdbMigration {
 		}
 	}
 	
+	private Set<String> tableNames;
 	public Set<String> getTableNames(){
-		return mdb.getTableNames();
+		return tableNames;
 	}
 	
+	private Map<String, Table> tableMap = new HashMap<>();
 	public Table getTable(String tableName) throws IOException{
-		return mdb.getTable(tableName);
+		return tableMap.get(tableName);
 	}
 	
 	public List<Column> getColumns(String tableName) throws IOException{
@@ -129,30 +134,19 @@ public class MdbMigration {
 	}
 	
 	private void openMdb(){
-		try {
-			Set<String> tableNames = getTableNames();
-			tableNames.parallelStream()
-				.filter(e -> targetTableNames.size() == 0 || targetTableNames.contains(e))
-				.filter(e -> excludedTable.size() == 0 || !excludedTable.contains(e))
-				.forEach(tableName -> {
-					try {
-						migrateTable(tableName);
-					} catch (Exception e1) {
-						throw new RuntimeException(e1);
-					}
-			});
-			System.out.println("END");
-		} catch (Exception e) {
-			e.printStackTrace();
-		} finally{
-			if(mdb != null){
+		Set<String> tableNames = getTableNames();
+		tableNames.parallelStream()
+			.filter(e -> targetTableNames.size() == 0 || targetTableNames.contains(e))
+			.filter(e -> excludedTable.size() == 0 || !excludedTable.contains(e))
+			.forEach(tableName -> {
 				try {
-					mdb.close();
-				} catch (IOException e) {
-					e.printStackTrace();
+					migrateTable(tableName);
+				} catch (Exception e1) {
+					throw new RuntimeException(e1);
 				}
-			}
-		}
+		});
+		System.out.println("END");
+
 	}
 	
 	private void migrateTable(String tableName) throws SQLException, IOException{
