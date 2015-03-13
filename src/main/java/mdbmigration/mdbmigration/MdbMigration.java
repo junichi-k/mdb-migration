@@ -20,7 +20,6 @@ import com.healthmarketscience.jackcess.Database;
 import com.healthmarketscience.jackcess.Table;
 
 public class MdbMigration {
-	private Database mdb;
 	private String hostName;
 	private String port;
 	private String databaseName;
@@ -29,9 +28,7 @@ public class MdbMigration {
 	private String pass;
 	private Map<String, TableMapping> convertTableMap = new HashMap<String, TableMapping>();
 	
-	
 	public MdbMigration(Database mdb, String hostName, String port, String databaseName, String schema, String user, String pass) throws IOException{
-		this.mdb = mdb;
 		this.tableNames = mdb.getTableNames();
 		for(String table : this.tableNames){
 			this.tableMap.put(table, mdb.getTable(table));
@@ -149,43 +146,53 @@ public class MdbMigration {
 
 	}
 	
+	private Map<String, MigrateEntity> migrateEntityMap;
+	public MigrateEntity getMigrateEntity(String table){
+		if(migrateEntityMap == null){
+			migrateEntityMap = new HashMap<String, MigrateEntity>();
+			tableNames.parallelStream()
+			.filter(e -> targetTableNames.size() == 0 || targetTableNames.contains(e))
+			.filter(e -> excludedTable.size() == 0 || !excludedTable.contains(e))
+			.forEach(tableName -> {
+				try {
+					Table t = getTable(tableName);
+					List<Column> columns = t.getColumns();
+					MigrateEntity me = new MigrateEntity();
+					TableMapping tableMapping = convertTableMap.get(tableName);
+					if(tableMapping != null){
+						me.setTableName(tableMapping.getMigrateTableName());
+						me.setTableMapping(tableMapping);
+					}else{
+						me.setTableName(tableName);
+					}
+					for(Column c : columns){
+						String columnName = c.getName();
+						String dataTypeName = PgDataType.getPgType(c.getType()).type;
+						if(tableMapping != null){
+							if(tableMapping.containsOriginColumnName(c.getName())){
+								columnName = tableMapping.getMigrateColumnName(c.getName());
+							}
+							if(tableMapping.containsMigrateDataType(c.getName())){
+								dataTypeName = tableMapping.getDataType(c.getName());
+							}
+						}
+						me.setColumNameMap(columnName, dataTypeName);
+					}
+					migrateEntityMap.put(tableName, me);
+				} catch (Exception e1) {
+					throw new RuntimeException(e1);
+				}
+		});
+		}
+		return migrateEntityMap.get(table);
+	}
+	
 	private void migrateTable(String tableName) throws SQLException, IOException{
-		Table table = getTable(tableName);
-		List<Column> columns = table.getColumns();
-		MigrateEntity me = new MigrateEntity();
-		TableMapping tableMapping = convertTableMap.get(tableName);
-		if(tableMapping != null){
-			me.setTableName(tableMapping.getMigrateTableName());
-			me.setTableMapping(tableMapping);
-		}else{
-			me.setTableName(tableName);
-		}
-		for(Column c : columns){
-			String columnName = c.getName();
-			String dataTypeName = PgDataType.getPgType(c.getType()).type;
-			if(tableMapping != null){
-				if(tableMapping.containsOriginColumnName(c.getName())){
-					columnName = tableMapping.getMigrateColumnName(c.getName());
-				}
-				if(tableMapping.containsMigrateDataType(c.getName())){
-					dataTypeName = tableMapping.getDataType(c.getName());
-				}
-			}
-			me.setColumNameMap(columnName, dataTypeName);
-		}
-		try {
-			Statement statement = con.createStatement();
-			statement.execute(me.getCreateTableSQL());
-			System.out.println("success:" + me.getCreateTableSQL());
-		} catch (SQLException e1) {
-			System.out.println("fail:" + me.getCreateTableSQL());
-			// CREATE TABLEに失敗したらINSERT SQLは実行しないためcontinue
-			return;
-		}
+		MigrateEntity me = getMigrateEntity(tableName);
 		if(onlyTableSchema){
 			return;
 		}
-		Iterator<Map<String, Object>> rowIterator = table.iterator();
+		Iterator<Map<String, Object>> rowIterator =  getTable(tableName).iterator();
 		
 		while(rowIterator.hasNext()){
 			Map<String, Object> row = rowIterator.next();

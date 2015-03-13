@@ -24,9 +24,17 @@ public class MigrateEntity {
 		this.tableName = tableName;
 	}
 	
+	public String getTableName(){
+		return tableName;
+	}
+	
 	private TableMapping tableMapping;
 	public void setTableMapping(TableMapping tableMapping){
 		this.tableMapping = tableMapping;
+	}
+	
+	public TableMapping getTableMapping(){
+		return tableMapping;
 	}
 	
 	/**
@@ -36,6 +44,10 @@ public class MigrateEntity {
 	private Map<String, String> columnNameMap = new LinkedHashMap<String, String>();
 	public void setColumNameMap(String columnName, String dataTypeName){
 		columnNameMap.put(columnName, dataTypeName);
+	}
+	
+	public Map<String, String> getColumnNameMap(){
+		return columnNameMap;
 	}
 	
 	public String getCreateTableSQL(){
