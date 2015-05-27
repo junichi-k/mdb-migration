@@ -17,6 +17,7 @@ import java.util.Set;
 
 import com.healthmarketscience.jackcess.Column;
 import com.healthmarketscience.jackcess.Database;
+import com.healthmarketscience.jackcess.Row;
 import com.healthmarketscience.jackcess.Table;
 
 public class MdbMigration {
@@ -84,29 +85,42 @@ public class MdbMigration {
 	private void migration() throws SQLException{
 		Statement statement = con.createStatement();
 		statement.execute("SET SEARCH_PATH TO '" + schema + "'");
-		allDropTable();
 		openMdb();
 	}
 	
-	private void allDropTable() throws SQLException{
-		Set<String> tableNames = getTableNames();
-		for(String tableName : tableNames){
-			if(targetTableNames.size() != 0 && !targetTableNames.contains(tableName)){
-				continue;
+	/**
+	 * スキーマごと削除する
+	 * @param hostName
+	 * @param port
+	 * @param databaseName
+	 * @param schema
+	 * @param user
+	 * @param pass
+	 * @throws ClassNotFoundException
+	 * @throws SQLException
+	 */
+	public static void dropSchema(String hostName, String port, String databaseName, String schema, String user, String pass) throws ClassNotFoundException, SQLException{
+		Class.forName("org.postgresql.Driver");
+		Connection c = null;
+		try {
+			String url = "jdbc:postgresql://" + hostName + ":" + port + "/" + databaseName;
+			System.out.println(url);
+			c = DriverManager.getConnection(url, user, pass);
+			Statement st1 = c.createStatement();
+			String dropSql = "DROP SCHEMA IF EXISTS " + schema + " CASCADE;";
+			System.out.println(dropSql);
+			st1.execute(dropSql);
+			
+			Statement st2 = c.createStatement();
+			String createSql = "CREATE SCHEMA " + schema + " AUTHORIZATION " + user + ";";
+			System.out.println(createSql);
+			st2.execute(createSql);
+		} catch (SQLException e) {
+			e.printStackTrace();
+		} finally{
+			if(c != null){
+				c.close();
 			}
-			if(excludedTable.size() != 0 && excludedTable.contains(tableName)){
-				continue;
-			}
-			if(convertTableMap.containsKey(tableName)){
-				tableName = convertTableMap.get(tableName).getMigrateTableName();
-			}
-			StringBuilder sb = new StringBuilder();
-			sb.append("DROP TABLE IF EXISTS ");
-			sb.append(tableName);
-			sb.append(";");
-			System.out.println(sb.toString());
-			Statement st = con.createStatement();
-			st.execute(sb.toString());
 		}
 	}
 	
@@ -120,7 +134,7 @@ public class MdbMigration {
 		return tableMap.get(tableName);
 	}
 	
-	public List<Column> getColumns(String tableName) throws IOException{
+	public List<? extends Column> getColumns(String tableName) throws IOException{
 		if(tableName != null){
 			Table table = getTable(tableName);
 			if(table != null){
@@ -156,7 +170,7 @@ public class MdbMigration {
 			.forEach(tableName -> {
 				try {
 					Table t = getTable(tableName);
-					List<Column> columns = t.getColumns();
+					List<? extends Column> columns = t.getColumns();
 					MigrateEntity me = new MigrateEntity();
 					TableMapping tableMapping = convertTableMap.get(tableName);
 					if(tableMapping != null){
@@ -192,8 +206,15 @@ public class MdbMigration {
 		if(onlyTableSchema){
 			return;
 		}
-		Iterator<Map<String, Object>> rowIterator =  getTable(tableName).iterator();
-		
+
+		try {
+			Statement statement = con.createStatement();
+			statement.execute(me.getCreateTableSQL());
+			System.out.println("success:" + me.getCreateTableSQL());
+		} catch (SQLException e1) {
+			System.out.println("fail:" + me.getCreateTableSQL());
+		}
+		Iterator<Row> rowIterator = getTable(tableName).iterator();
 		while(rowIterator.hasNext()){
 			Map<String, Object> row = rowIterator.next();
 			me.clearData();

@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.healthmarketscience.jackcess.Database;
+import com.healthmarketscience.jackcess.DatabaseBuilder;
 
 public class Main {
 
@@ -83,7 +84,7 @@ public class Main {
 		MdbMigration mdbMigration = null;
 		Database mdb = null;
 		try {
-			mdb = Database.create(new File(filePath));
+			mdb = DatabaseBuilder.open(new File(filePath));
 			mdbMigration = new MdbMigration(mdb, hostName, port, databaseName, schema, user, pass);
 			mdbMigration.setTargetTableNames(targetTableNames);
 			mdbMigration.setExcludedTable(excludedTableNames);

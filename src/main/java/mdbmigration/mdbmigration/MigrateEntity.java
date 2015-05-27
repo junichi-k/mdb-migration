@@ -52,7 +52,7 @@ public class MigrateEntity {
 	
 	public String getCreateTableSQL(){
 		StringBuilder sb = new StringBuilder();
-		sb.append("CREATE TABLE ");
+		sb.append("CREATE TABLE IF NOT EXISTS ");
 		sb.append(tableName);
 		sb.append("(");
 		List<String> columnDef = new ArrayList<String>();
