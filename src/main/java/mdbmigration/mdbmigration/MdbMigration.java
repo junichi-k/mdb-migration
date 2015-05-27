@@ -145,6 +145,8 @@ public class MdbMigration {
 	}
 	
 	private void openMdb(){
+		// 並列処理される前に予めセットしておく
+		setMigrateEntity();
 		Set<String> tableNames = getTableNames();
 		tableNames.parallelStream()
 			.filter(e -> targetTableNames.size() == 0 || targetTableNames.contains(e))
@@ -163,42 +165,49 @@ public class MdbMigration {
 	private Map<String, MigrateEntity> migrateEntityMap;
 	public MigrateEntity getMigrateEntity(String table){
 		if(migrateEntityMap == null){
-			migrateEntityMap = new HashMap<String, MigrateEntity>();
-			tableNames.parallelStream()
-			.filter(e -> targetTableNames.size() == 0 || targetTableNames.contains(e))
-			.filter(e -> excludedTable.size() == 0 || !excludedTable.contains(e))
-			.forEach(tableName -> {
-				try {
-					Table t = getTable(tableName);
-					List<? extends Column> columns = t.getColumns();
-					MigrateEntity me = new MigrateEntity();
-					TableMapping tableMapping = convertTableMap.get(tableName);
-					if(tableMapping != null){
-						me.setTableName(tableMapping.getMigrateTableName());
-						me.setTableMapping(tableMapping);
-					}else{
-						me.setTableName(tableName);
-					}
-					for(Column c : columns){
-						String columnName = c.getName();
-						String dataTypeName = PgDataType.getPgType(c.getType()).type;
-						if(tableMapping != null){
-							if(tableMapping.containsOriginColumnName(c.getName())){
-								columnName = tableMapping.getMigrateColumnName(c.getName());
-							}
-							if(tableMapping.containsMigrateDataType(c.getName())){
-								dataTypeName = tableMapping.getDataType(c.getName());
-							}
-						}
-						me.setColumNameMap(columnName, dataTypeName);
-					}
-					migrateEntityMap.put(tableName, me);
-				} catch (Exception e1) {
-					throw new RuntimeException(e1);
-				}
-		});
+			setMigrateEntity();
 		}
 		return migrateEntityMap.get(table);
+	}
+	
+	private void setMigrateEntity(){
+		if(migrateEntityMap != null){
+			return;
+		}
+		migrateEntityMap = new HashMap<String, MigrateEntity>();
+		tableNames.parallelStream()
+		.filter(e -> targetTableNames.size() == 0 || targetTableNames.contains(e))
+		.filter(e -> excludedTable.size() == 0 || !excludedTable.contains(e))
+		.forEach(tableName -> {
+			try {
+				Table t = getTable(tableName);
+				List<? extends Column> columns = t.getColumns();
+				MigrateEntity me = new MigrateEntity();
+				TableMapping tableMapping = convertTableMap.get(tableName);
+				if(tableMapping != null){
+					me.setTableName(tableMapping.getMigrateTableName());
+					me.setTableMapping(tableMapping);
+				}else{
+					me.setTableName(tableName);
+				}
+				for(Column c : columns){
+					String columnName = c.getName();
+					String dataTypeName = PgDataType.getPgType(c.getType()).type;
+					if(tableMapping != null){
+						if(tableMapping.containsOriginColumnName(c.getName())){
+							columnName = tableMapping.getMigrateColumnName(c.getName());
+						}
+						if(tableMapping.containsMigrateDataType(c.getName())){
+							dataTypeName = tableMapping.getDataType(c.getName());
+						}
+					}
+					me.setColumNameMap(columnName, dataTypeName);
+				}
+				migrateEntityMap.put(tableName, me);
+			} catch (Exception e1) {
+				throw new RuntimeException(e1);
+			}
+		});
 	}
 	
 	private void migrateTable(String tableName) throws SQLException, IOException{
@@ -212,6 +221,7 @@ public class MdbMigration {
 			statement.execute(me.getCreateTableSQL());
 			System.out.println("success:" + me.getCreateTableSQL());
 		} catch (SQLException e1) {
+			System.out.println(e1.toString());
 			System.out.println("fail:" + me.getCreateTableSQL());
 		}
 		Iterator<Row> rowIterator = getTable(tableName).iterator();
@@ -232,6 +242,7 @@ public class MdbMigration {
 				System.out.println("success:" + ps);
 				ps.clearParameters();
 			} catch (SQLException e1) {
+				System.out.println(e1.toString());
 				System.out.println("fail:" + ps);
 			}
 		}
