@@ -93,13 +93,14 @@ public class MdbMigration {
 	 * @param hostName
 	 * @param port
 	 * @param databaseName
-	 * @param schema
+	 * @param schema 
 	 * @param user
 	 * @param pass
+	 * @param authorization
 	 * @throws ClassNotFoundException
 	 * @throws SQLException
 	 */
-	public static void dropSchema(String hostName, String port, String databaseName, String schema, String user, String pass) throws ClassNotFoundException, SQLException{
+	public static void dropSchema(String hostName, String port, String databaseName, String schema, String user, String pass, String authorization) throws ClassNotFoundException, SQLException{
 		Class.forName("org.postgresql.Driver");
 		Connection c = null;
 		try {
@@ -112,7 +113,7 @@ public class MdbMigration {
 			st1.execute(dropSql);
 			
 			Statement st2 = c.createStatement();
-			String createSql = "CREATE SCHEMA " + schema + " AUTHORIZATION " + user + ";";
+			String createSql = "CREATE SCHEMA " + schema + " AUTHORIZATION " + authorization + ";";
 			System.out.println(createSql);
 			st2.execute(createSql);
 		} catch (SQLException e) {
@@ -198,7 +199,7 @@ public class MdbMigration {
 							columnName = tableMapping.getMigrateColumnName(c.getName());
 						}
 						if(tableMapping.containsMigrateDataType(c.getName())){
-							dataTypeName = tableMapping.getDataType(c.getName());
+							dataTypeName = tableMapping.getData(c.getName());
 						}
 					}
 					me.setColumNameMap(columnName, dataTypeName);

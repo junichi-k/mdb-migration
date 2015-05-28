@@ -101,7 +101,7 @@ public class MigrateEntity {
 		int index = 1;
 		for(Entry<String, String> e : columnNameMap.entrySet()){
 			if(tableMapping != null && tableMapping.containsMigrateValue(e.getKey())){
-				setValue(ps, index, e.getValue(), tableMapping.getValueMap(e.getKey()));
+				setValue(ps, index, e.getValue(), tableMapping.getValue(e.getKey()));
 				index++;
 				continue;
 			}

@@ -1,6 +1,5 @@
 package mdbmigration.mdbmigration;
 
-import java.util.HashMap;
 import java.util.Map;
 
 public abstract class TableMapping {
@@ -11,35 +10,54 @@ public abstract class TableMapping {
 	 * key:元カラム名
 	 * value:移行先カラム名
 	 */
-	protected Map<String, String> columnMap = new HashMap<String, String>();
+	protected abstract Map<String, String> getColumnMap();
 	public boolean containsOriginColumnName(String originColumnName){
-		return columnMap.containsKey(originColumnName);
+		if(getColumnMap() == null){
+			return false;
+		}
+		return getColumnMap().containsKey(originColumnName);
 	}
 	public String getMigrateColumnName(String originColumnName){
-		return columnMap.get(originColumnName);
+		if(getColumnMap() == null){
+			return null;
+		}
+		return getColumnMap().get(originColumnName);
 	}
 	
 	/**
 	 * key:元カラムの型
 	 * value:移行先カラムの型
 	 */
-	protected Map<String, String> dataTypeMap = new HashMap<String, String>();
+	protected abstract Map<String, String> getDataTypeMap();
 	public boolean containsMigrateDataType(String originColumnName){
-		return dataTypeMap.containsKey(originColumnName);
+		if(getDataTypeMap() == null){
+			return false;
+		}
+		return getDataTypeMap().containsKey(originColumnName);
 	}
-	public String getDataType(String originColumnName){
-		return dataTypeMap.get(originColumnName);
+	public String getData(String originColumnName){
+		if(getDataTypeMap() == null){
+			return null;
+		}
+		return getDataTypeMap().get(originColumnName);
 	}
 	
 	/**
 	 * key:移行先カラム
 	 * value:変換値
 	 */
-	protected Map<String, String> valueMap = new HashMap<String, String>();
+	protected abstract Map<String, String> getValueMap();
+	
 	public boolean containsMigrateValue(String migrateColumnName){
-		return valueMap.containsKey(migrateColumnName);
+		if(getValueMap() == null){
+			return false;
+		}
+		return getValueMap().containsKey(migrateColumnName);
 	}
-	public String getValueMap(String migrateColumnName){
-		return valueMap.get(migrateColumnName);
+	public String getValue(String migrateColumnName){
+		if(getValueMap() == null){
+			return null;
+		}
+		return getValueMap().get(migrateColumnName);
 	}
 }
