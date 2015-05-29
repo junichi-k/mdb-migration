@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.healthmarketscience.jackcess.Column;
 import com.healthmarketscience.jackcess.Database;
@@ -40,7 +41,7 @@ public class MdbMigration {
 		this.schema = schema;
 		this.user = user;
 		this.pass = pass;
-		this.targetTableNames = new ArrayList<String>();
+		this.targetTableNames = new HashSet<String>();
 	}
 	
 	public MdbMigration(Database mdb, String hostName, String port, String databaseName, String schema, String user, String pass, List<TableMapping> tableMappings) throws IOException{
@@ -50,17 +51,32 @@ public class MdbMigration {
 		}
 	}
 	
-	private List<String> targetTableNames;
-	public void setTargetTableNames(List<String> targetTableNames){
+	private Set<String> targetTableNames;
+	/**
+	 * 指定のテーブル名のみ移行するテーブル名をセットする
+	 * @param targetTableNames
+	 */
+	public void setTargetTableNames(Set<String> targetTableNames){
 		this.targetTableNames = targetTableNames;
 	}
 	
+	/**
+	 * テーブル定義のみにするかどうか
+	 */
 	private boolean onlyTableSchema = false;
+	/**
+	 * テーブル定義のみにするかどうかをセットする
+	 * @param onlyTableSchema
+	 */
 	public void setOnlyTableSchema(boolean onlyTableSchema){
 		this.onlyTableSchema = onlyTableSchema;
 	}
 	
 	private Set<String> excludedTable = new HashSet<String>();
+	/**
+	 * 移行から除外するテーブル名をセットする
+	 * @param excludedTable
+	 */
 	public void setExcludedTable(Set<String> excludedTable){
 		this.excludedTable = excludedTable;
 	}
@@ -130,6 +146,14 @@ public class MdbMigration {
 		return tableNames;
 	}
 	
+	public List<MigrateEntity> getFilteringMigrateEntities(){
+		return getTableNames().stream()
+			.filter(e -> targetTableNames.size() == 0 || targetTableNames.contains(e))
+			.filter(e -> excludedTable.size() == 0 || !excludedTable.contains(e))
+			.map(tableName -> getMigrateEntity(tableName))
+			.collect(Collectors.toList());
+	}
+	
 	private Map<String, Table> tableMap = new HashMap<>();
 	public Table getTable(String tableName) throws IOException{
 		return tableMap.get(tableName);
@@ -161,6 +185,17 @@ public class MdbMigration {
 		});
 		System.out.println("END");
 
+	}
+	
+	public List<MigrateEntity> getMigrateEntities(){
+		if(migrateEntityMap == null){
+			setMigrateEntity();
+		}
+		List<MigrateEntity> migrateEntities = new ArrayList<MigrateEntity>();
+		for(Entry<String, MigrateEntity> e : migrateEntityMap.entrySet()){
+			migrateEntities.add(e.getValue());
+		}
+		return migrateEntities;
 	}
 	
 	private Map<String, MigrateEntity> migrateEntityMap;
@@ -213,10 +248,6 @@ public class MdbMigration {
 	
 	private void migrateTable(String tableName) throws SQLException, IOException{
 		MigrateEntity me = getMigrateEntity(tableName);
-		if(onlyTableSchema){
-			return;
-		}
-
 		try {
 			Statement statement = con.createStatement();
 			statement.execute(me.getCreateTableSQL());
@@ -224,6 +255,9 @@ public class MdbMigration {
 		} catch (SQLException e1) {
 			System.out.println(e1.toString());
 			System.out.println("fail:" + me.getCreateTableSQL());
+		}
+		if(onlyTableSchema){
+			return;
 		}
 		Iterator<Row> rowIterator = getTable(tableName).iterator();
 		while(rowIterator.hasNext()){

@@ -3,7 +3,6 @@ package mdbmigration.mdbmigration;
 import java.io.File;
 import java.io.IOException;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -69,11 +68,11 @@ public class Main {
 		if(argMap.containsKey(ArgsType.PASS.argName)){
 			user = argMap.get(ArgsType.PASS.argName);
 		}
-		List<String> targetTableNames = new ArrayList<String>();
+		Set<String> targetTableNames = new HashSet<String>();
 		if(argMap.containsKey(ArgsType.TABLE.argName)){
 			String tableNameArg = argMap.get(ArgsType.TABLE.argName);
 			String[] tableNames = tableNameArg.split(",");
-			targetTableNames = Arrays.asList(tableNames);
+			targetTableNames = new HashSet<String>(Arrays.asList(tableNames));
 		}
 		Set<String> excludedTableNames = new HashSet<String>();
 		if(argMap.containsKey(ArgsType.EXCLUDED_TABLE.argName)){
