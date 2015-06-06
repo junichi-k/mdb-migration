@@ -264,10 +264,14 @@ public class MdbMigration {
 			Map<String, Object> row = rowIterator.next();
 			me.clearData();
 			for(Entry<String, Object> e : row.entrySet()){
+				String key = e.getKey();
+				if(me.getTableMapping().containsOriginColumnName(e.getKey())){
+					key = me.getTableMapping().getMigrateColumnName(e.getKey());
+				}
 				if(e.getValue() != null){
-					me.setDataMap(e.getKey(), e.getValue().toString());
+					me.setDataMap(key, e.getValue().toString());
 				}else{
-					me.setDataMap(e.getKey(), null);
+					me.setDataMap(key, null);
 				}
 			}
 			PreparedStatement ps = con.prepareStatement(me.getPreparedStatementSql());
