@@ -265,7 +265,7 @@ public class MdbMigration {
 			me.clearData();
 			for(Entry<String, Object> e : row.entrySet()){
 				String key = e.getKey();
-				if(me.getTableMapping().containsOriginColumnName(e.getKey())){
+				if(me.getTableMapping() != null && me.getTableMapping().containsOriginColumnName(e.getKey())){
 					key = me.getTableMapping().getMigrateColumnName(e.getKey());
 				}
 				if(e.getValue() != null){
